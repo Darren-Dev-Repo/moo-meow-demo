@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>慕貓 Moo'meow — 上傳影片</title>
+<style>
+  :root{
+    --bg: #ffcca6;      /* 淺橘背景 */
+    --btn: #ee8e48;     /* 深橘按鈕底色 */
+    --muted: #d9a985;
+    --card-bg: #fffaf6;
+    --text-dark: #2b2b2b;
+  }
+  html,body{
+    height:100%;
+    margin:0;
+    font-family: "Noto Sans", "Arial", sans-serif;
+    background: var(--bg);
+    color: var(--text-dark);
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .page{
+    max-width:920px;
+    margin:20px auto;
+    padding:18px;
+    box-sizing:border-box;
+  }
+
+  header{ text-align:center; margin-bottom:10px; }
+  header h1{ margin:6px 0; font-size:1.3rem; }
+  header p{ margin:0; color:#4b3222; font-size:0.95rem; }
+
+  /* 影片預覽 (1:1 方形) */
+  .viewer{ display:flex; justify-content:center; align-items:center; margin:16px 0; }
+  .video-box{
+    width:360px; height:360px;
+    border-radius:20px; overflow:hidden;
+    background: linear-gradient(180deg,#f8efe8,#fffaf6);
+    box-shadow:0 8px 24px rgba(0,0,0,0.12);
+    display:flex; align-items:center; justify-content:center;
+  }
+  video#preview{ width:100%; height:100%; object-fit:cover; background:#000; display:block; }
+
+  /* 控制列（三按鈕） */
+  .controls{
+    display:flex; justify-content:space-between; align-items:center; margin-top:14px;
+  }
+  .controls .col{ display:flex; gap:14px; align-items:center; }
+
+  .btn-circle{
+    width:76px; height:76px; border-radius:50%; background:var(--btn); border:none;
+    display:inline-flex; align-items:center; justify-content:center;
+    box-shadow:0 8px 20px rgba(0,0,0,0.14); cursor:pointer; padding:12px;
+    transition: transform .12s ease, opacity .12s ease;
+  }
+  .btn-circle:active{ transform: scale(.96); }
+  .btn-circle[disabled]{ opacity:0.5; cursor:not-allowed; transform:none; }
+
+  .btn-small{
+    width:56px; height:56px; border-radius:50%; background:var(--btn); border:none;
+    display:inline-flex; align-items:center; justify-content:center;
+    box-shadow:0 6px 14px rgba(0,0,0,0.12); cursor:pointer; padding:8px;
+  }
+  .btn-small[disabled]{ opacity:0.5; cursor:not-allowed; }
+
+  .btn-icon{ width:60%; height:60%; object-fit:contain; display:block; }
+
+  /* 進度條與狀態 */
+  #progressBar{ width:100%; height:10px; background:#ffe9d9; border-radius:8px; overflow:hidden; margin-top:12px; }
+  #progressFill{ height:100%; width:0%; background:linear-gradient(90deg,#ff7b7b,#ffb86b); transition:width .12s linear; }
+  #status{ margin-top:8px; color:#3b2d23; font-size:0.95rem; min-height:1.2em; }
+
+  /* Output 卡片區（保留空間、避免壓縮） */
+  .output-wrap{
+    margin-top:14px;
+    min-height:220px;         /* 保留高度，避免被壓縮 */
+    display:flex;
+    align-items:stretch;
+    gap:16px;
+  }
+  .output-card{
+    flex: 1 1 0;
+    background: var(--card-bg);
+    border-radius:12px;
+    box-shadow:0 8px 20px rgba(0,0,0,0.08);
+    padding:12px;
+    display:flex;
+    gap:12px;
+    align-items:flex-start;
+    /* allow wrapping on narrow screens so text won't be squeezed */
+    flex-wrap: wrap;
+  }
+  /* make thumb responsive: keep 320px on wide screens but not force overflow */
+  .output-thumb{
+    width:320px; 
+    max-width:45%;        /* allow it to shrink relative to container */
+    height:180px; 
+    background:#eee; 
+    border-radius:8px; 
+    flex: 0 0 auto;
+    display:flex; 
+    align-items:center; 
+    justify-content:center; 
+    overflow:hidden;
+  }
+  .output-thumb img{ width:100%; height:100%; object-fit:cover; display:block; max-width:100%; }
+
+  .output-text{
+    flex:1 1 0;
+    display:flex; 
+    flex-direction:column; 
+    justify-content:flex-start;
+    /* critical: allow text area to shrink properly in flexbox */
+    min-width: 0;
+  }
+  .result-title{ font-size:1.15rem; font-weight:700; margin-bottom:6px; word-break:break-word; }
+  .result-meta{ font-size:0.95rem; color:#433227; margin-bottom:8px; overflow-wrap: anywhere; }
+  .result-desc{ color:#3b2d23; line-height:1.4; overflow-wrap: anywhere; }
+
+  /* Small screens */
+  @media (max-width:760px){
+    .video-box{ width:320px; height:320px; }
+    .controls{ gap:8px; }
+    .btn-circle{ width:68px; height:68px; }
+    .output-wrap{ flex-direction:column; }
+    .output-thumb{ width:100%; height:200px; max-width:100%; }
+    /* ensure card items stack nicely */
+    .output-card{ padding:10px; gap:10px; }
+  }
+</style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <h1>慕貓 Moo'meow DEMO</h1>
+      <p>上傳 ≤15 秒的手機影片（.mp4/.mov/.webm）；系統會分析並回傳圖卡與文字結果。</p>
+    </header>
+
+    <div class="viewer">
+      <div class="video-box">
+        <video id="preview" playsinline controls muted></video>
+      </div>
+    </div>
+
+    <div class="controls" role="group" aria-label="controls">
+      <!-- 左：重新上傳 (cancel) -->
+      <div class="col">
+        <button id="cancelBtn" class="btn-small" title="重新上傳 / 重置" aria-label="重新上傳" disabled>
+          <img class="btn-icon" src="./image/cancel.svg" alt="取消">
+        </button>
+      </div>
+
+      <!-- 中：選檔 (record.svg as choose file) -->
+      <div class="col">
+        <!-- hidden file input -->
+        <input id="fileInput" type="file" accept="video/*" style="display:none" />
+        <button id="chooseBtn" class="btn-circle" title="選擇影片" aria-label="選擇影片">
+          <img class="btn-icon" src="./image/record.svg" alt="選檔">
+        </button>
+      </div>
+
+      <!-- 右：上傳並分析 -->
+      <div class="col">
+        <button id="uploadBtn" class="btn-small" title="上傳並分析" aria-label="上傳並分析" disabled>
+          <img class="btn-icon" src="./image/upload.svg" alt="上傳">
+        </button>
+      </div>
+    </div>
+
+    <div id="progressBar"><div id="progressFill"></div></div>
+    <div id="status" role="status"></div>
+
+    <!-- Output 卡片區（保留空間） -->
+    <div class="output-wrap" aria-live="polite">
+      <div class="output-card" id="outputCard">
+        <div class="output-thumb" id="outputThumb">
+          <!-- 如果沒有圖卡，顯示預設文字 -->
+          <div id="thumbPlaceholder" style="padding:12px; color:#8a6f57; text-align:center;">
+            圖卡預覽會顯示在此
+          </div>
+        </div>
+        <div class="output-text">
+          <div class="result-title" id="resultTitle">分析結果會顯示在這裡</div>
+          <div class="result-meta" id="resultMeta">尚未上傳影片或等待分析結果。</div>
+          <div class="result-desc" id="resultDesc">上傳後，系統會產生簡短建議與說明。</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+<script>
+/* ===== API_URL (relative path since front-end served by same host) ===== */
+const API_URL = "/analyze";
+const MAX_SECONDS = 15.0;
+
+/* elements */
+const fileInput = document.getElementById('fileInput');
+const chooseBtn = document.getElementById('chooseBtn');
+const cancelBtn = document.getElementById('cancelBtn');
+const uploadBtn = document.getElementById('uploadBtn');
+const preview = document.getElementById('preview');
+const progressFill = document.getElementById('progressFill');
+const statusDiv = document.getElementById('status');
+
+const outputThumb = document.getElementById('outputThumb');
+const thumbPlaceholder = document.getElementById('thumbPlaceholder');
+const resultTitle = document.getElementById('resultTitle');
+const resultMeta = document.getElementById('resultMeta');
+const resultDesc = document.getElementById('resultDesc');
+
+/* state */
+let selectedFile = null;
+
+/* choose file */
+chooseBtn.addEventListener('click', () => fileInput.click());
+
+fileInput.addEventListener('change', () => {
+  const f = fileInput.files[0];
+  if(!f) { clearSelection(); return; }
+  selectedFile = f;
+  setStatus(`已選擇：${f.name} (${(f.size/1024/1024).toFixed(2)} MB)。正在讀取時長...`);
+
+  // check duration
+  getVideoDuration(f).then(dur => {
+    if(dur > MAX_SECONDS + 0.1){
+      setStatus(`影片長度 ${dur.toFixed(1)}s 超過 ${MAX_SECONDS}s，請裁切後再上傳。`);
+      uploadBtn.disabled = true;
+      cancelBtn.disabled = false;
+    } else {
+      setStatus(`已選擇：${f.name}（${dur.toFixed(1)}s）`);
+      uploadBtn.disabled = false;
+      cancelBtn.disabled = false;
+      // preview
+      try {
+        preview.srcObject = null;
+        preview.src = URL.createObjectURL(f);
+        preview.controls = true;
+      } catch(e){
+        console.warn("preview failed", e);
+      }
+    }
+  }).catch(err => {
+    console.warn(err);
+    setStatus("無法讀取影片時長，請確認檔案或改用其他檔案。");
+    uploadBtn.disabled = true;
+    cancelBtn.disabled = false;
+  });
+});
+
+/* cancel / reset */
+cancelBtn.addEventListener('click', () => {
+  clearSelection();
+  setStatus("已重置。");
+});
+
+function clearSelection(){
+  selectedFile = null;
+  fileInput.value = "";
+  preview.pause();
+  preview.removeAttribute('src');
+  preview.load();
+  uploadBtn.disabled = true;
+  cancelBtn.disabled = true;
+  // reset output (keep last result? here we keep showing previous result until next success)
+}
+
+/* upload + analyze */
+uploadBtn.addEventListener('click', () => {
+  if(!selectedFile){ setStatus("請先選擇影片檔"); return; }
+  // final duration check
+  getVideoDuration(selectedFile).then(dur => {
+    if(dur > MAX_SECONDS + 0.1){ alert("影片超過 15 秒，請裁短或重新上傳"); return; }
+    sendFile(selectedFile);
+  }).catch(() => sendFile(selectedFile));
+});
+
+function sendFile(file){
+  const fd = new FormData();
+  fd.append('file', file, file.name);
+  setStatus("上傳中...");
+  progressFill.style.width = '0%';
+  // clear output placeholder while uploading
+  // (we keep previous output visible; you may prefer to clear)
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', API_URL, true);
+
+  xhr.upload.onprogress = e => {
+    if(e.lengthComputable){
+      const pct = Math.round(e.loaded / e.total * 100);
+      progressFill.style.width = pct + '%';
+      setStatus(`上傳中：${pct}%`);
+    }
+  };
+
+  xhr.onload = () => {
+    progressFill.style.width = '100%';
+    if(xhr.status >= 200 && xhr.status < 300){
+      try{
+        const j = JSON.parse(xhr.responseText);
+        handleAnalysisResponse(j);
+      }catch(e){
+        console.error("parse response error", e, xhr.responseText);
+        setStatus("上傳成功，但伺服器回應無法解析。請查看 server log。");
+      }
+    } else {
+      setStatus(`上傳失敗：${xhr.status} ${xhr.responseText}`);
+    }
+  };
+
+  xhr.onerror = () => setStatus("網路錯誤：上傳失敗");
+  xhr.send(fd);
+}
+
+/* handle API JSON */
+function handleAnalysisResponse(j){
+  // expected fields: result, ratios.relaxed, ratios.uncomfortable, card_url
+  setStatus(`結果：${j.result}（放鬆 ${(j.ratios && j.ratios.relaxed ? (j.ratios.relaxed*100).toFixed(1) : '?')}%）`);
+  resultTitle.innerText = `判定：${j.result || 'N/A'}`;
+  if(j.ratios){
+    resultMeta.innerText = `放鬆：${(j.ratios.relaxed*100).toFixed(1)}%  ／  不適：${(j.ratios.uncomfortable*100).toFixed(1)}%`;
+  } else {
+    resultMeta.innerText = `沒有比例資訊`;
+  }
+  resultDesc.innerText = j.explanation || (j.result === "不適" ? "主子可能處於不適或壓力中，請多留意。" : "主子看起來放鬆，適合互動或撫摸。");
+
+  // show card image if available
+  if(j.card_url){
+    let url = j.card_url;
+    if(url.startsWith('/')) url = window.location.origin + url;
+    const img = document.createElement('img');
+    img.src = url + '?t=' + Date.now();
+    // replace thumb
+    outputThumb.innerHTML = '';
+    outputThumb.appendChild(img);
+  }
+}
+
+/* get video duration helper */
+function getVideoDuration(file){
+  return new Promise((resolve, reject) => {
+    try {
+      const url = URL.createObjectURL(file);
+      const v = document.createElement('video');
+      v.preload = 'metadata';
+      v.src = url;
+
+      const cleanup = () => {
+        URL.revokeObjectURL(url);
+        v.removeAttribute('src');
+        v.load();
+      };
+
+      v.onloadedmetadata = function(){
+        let d = v.duration;
+        if (!isFinite(d) || isNaN(d) || d === 0) {
+          // fallback: try to seek
+          let handled = false;
+          v.currentTime = 1e101;
+          v.ontimeupdate = function(){
+            if (handled) return;
+            handled = true;
+            v.ontimeupdate = null;
+            d = v.duration;
+            cleanup();
+            if (isFinite(d) && !isNaN(d) && d > 0) resolve(d);
+            else resolve(0);
+          };
+          // timeout fallback
+          setTimeout(()=>{ if(!handled){ cleanup(); resolve(d || 0); } }, 1200);
+        } else {
+          cleanup();
+          resolve(d);
+        }
+      };
+
+      v.onerror = function(e){
+        cleanup();
+        reject(new Error('Cannot load video metadata'));
+      };
+    } catch (err){
+      reject(err);
+    }
+  });
+}
+
+/* utility */
+function setStatus(text){ statusDiv.innerText = text || ""; }
+
+</script>
+</body>
+</html>
