@@ -28,7 +28,7 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 @app.get("/")
 def index():
-    return FileResponse("static/upload-for-backend.html")
+    return FileResponse("static/upload.html")
 
 # CORS
 app.add_middleware(
